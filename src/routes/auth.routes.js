@@ -22,18 +22,22 @@ r.post('/lookup', async (req, res) => {
   return res.json({ status: 'needs-otp' })
 })
 
-/** POST /auth/request-otp — { phone } */
+/** POST /auth/request-otp — { phone, name? } */
 r.post('/request-otp', async (req, res) => {
   const phone = normalizePhone(req.body.phone)
+  const name = String(req.body.name || '').trim()
   if (!validPhone(phone)) return res.status(400).json({ error: 'Invalid phone' })
 
   const otp = generateOtp()
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000)
 
+  const setFields = { otp, otpExpiresAt: expiresAt, otpVerifiedAt: null }
+  if (name) setFields.name = name
+
   await User.findOneAndUpdate(
     { phone },
     {
-      $set: { otp, otpExpiresAt: expiresAt, otpVerifiedAt: null },
+      $set: setFields,
       $setOnInsert: {
         phone,
         role: phone === config.superPhone ? 'super' : 'customer',
@@ -68,14 +72,16 @@ r.post('/verify-otp', async (req, res) => {
 })
 
 /**
- * POST /auth/set-password — { phone, password, intent, ticket }
- * ticket is the OTP JWT issued by verify-otp. Intent determines next hop.
+ * POST /auth/set-password — { phone, password, intent, ticket, name? }
+ * After setting password, syncs the customer to ZXCOM so they can log in
+ * on zxcom.in with the same credentials — no separate registration needed.
  */
 r.post('/set-password', async (req, res) => {
   const phone = normalizePhone(req.body.phone)
   const password = String(req.body.password || '')
   const intent = req.body.intent === 'partner' ? 'partner' : 'customer'
   const ticket = req.body.ticket
+  const name = String(req.body.name || '').trim()
 
   if (!validPhone(phone)) return res.status(400).json({ error: 'Invalid phone' })
   if (password.length < 8) return res.status(400).json({ error: 'Password too short' })
@@ -96,10 +102,38 @@ r.post('/set-password', async (req, res) => {
   u.intent = intent
   u.otpVerifiedAt = null
   u.lastLoginAt = new Date()
+  if (name) u.name = name
 
   // super-admin identity is pinned by phone
   if (phone === config.superPhone) u.role = 'super'
   await u.save()
+
+  // Sync to ZXCOM — create customer account with same phone+password.
+  // Best-effort: never fail the ZXMONEY response if ZXCOM is unreachable.
+  if (intent === 'customer') {
+    try {
+      const zxcomRes = await fetch(`${config.zxcomApiUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: u.name || name || phone,
+          phone,
+          password,
+          role: 'customer',
+        }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!zxcomRes.ok) {
+        const body = await zxcomRes.json().catch(() => ({}))
+        // 400 "already registered" is fine — account already exists on ZXCOM
+        if (zxcomRes.status !== 400) {
+          console.warn('[zxcom-sync] register failed', zxcomRes.status, body?.message)
+        }
+      }
+    } catch (err) {
+      console.warn('[zxcom-sync] unreachable', err.message)
+    }
+  }
 
   const token = signAuth(u)
   res.json({ ok: true, token, role: u.role, intent })

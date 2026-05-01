@@ -15,4 +15,5 @@ export const config = {
     enabled: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM),
   },
   seedOnBoot: (process.env.SEED_ON_BOOT || 'true').toLowerCase() === 'true',
+  zxcomApiUrl: process.env.ZXCOM_API_URL || 'https://zxcom.in',
 }
