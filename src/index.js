@@ -9,6 +9,8 @@ import customerRoutes from './routes/customer.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import superRoutes from './routes/super.routes.js'
 import partnerRoutes from './routes/partner.routes.js'
+import redeemRoutes from './routes/redeem.routes.js'
+import { startWalletCron } from './lib/walletCron.js'
 
 const app = express()
 
@@ -30,6 +32,7 @@ app.use('/api', customerRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/super', superRoutes)
 app.use('/api/partner', partnerRoutes)
+app.use('/api/redeem', redeemRoutes)
 
 // 404 (API only)
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }))
@@ -49,6 +52,7 @@ async function boot() {
     console.log(`[api] listening on http://localhost:${config.port}`)
     console.log(`[api] twilio: ${config.twilio.enabled ? 'enabled' : 'dev-console mode'}`)
   })
+  startWalletCron()
 }
 boot().catch((e) => {
   console.error('[boot]', e)

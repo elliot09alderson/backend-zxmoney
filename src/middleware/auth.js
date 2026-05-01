@@ -12,8 +12,10 @@ export async function authRequired(req, res, next) {
     const user = await User.findOne({ phone: payload.sub })
     if (!user) return res.status(401).json({ error: 'User not found' })
 
-    // trust current db role over token role (super-admin may have changed something)
+    // Use the role from the JWT — ZXMONEY issues customer/admin/super tokens
+    // regardless of the ZXCOM role stored in DB (promoter/merchant etc.)
     req.user = user
+    req.user = { ...user.toObject(), role: payload.role }
     next()
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' })

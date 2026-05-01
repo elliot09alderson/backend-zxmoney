@@ -116,9 +116,16 @@ r.post('/contests/:id/declare-winners', async (req, res) => {
 })
 
 // Winners ---
+// Returns own winners + globally declared super-admin winners
 r.get('/winners', async (req, res) => {
-  const list = await Winner.find({ restaurantId: req.restaurant._id }).sort({ wonAt: -1 })
-  res.json(list)
+  const [own, global] = await Promise.all([
+    Winner.find({ restaurantId: req.restaurant._id }).sort({ wonAt: -1 }),
+    Winner.find({ declaredBySuperAdmin: true, restaurantId: null }).sort({ wonAt: -1 }),
+  ])
+  // Mark source so frontend can split into tabs
+  const ownJson = own.map((w) => ({ ...w.toJSON(), source: 'mine' }))
+  const globalJson = global.map((w) => ({ ...w.toJSON(), source: 'global' }))
+  res.json([...ownJson, ...globalJson])
 })
 
 r.post('/winners', async (req, res) => {

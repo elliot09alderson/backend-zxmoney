@@ -9,16 +9,36 @@ export function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000))
 }
 
-export async function sendOtp(phone, otp) {
-  if (!client) {
-    console.log(`[otp:dev] ${phone} → ${otp}`)
-    return { sent: false, dev: true }
-  }
+export async function sendOtp(phone) {
   const to = phone.startsWith('+') ? phone : `+91${phone}`
-  await client.messages.create({
-    to,
-    from: config.twilio.from,
-    body: `Your zx.money code is ${otp}. Valid for 5 minutes.`,
-  })
-  return { sent: true }
+
+  if (client) {
+    try {
+      await client.verify.v2.services(config.twilio.verifySid).verifications.create({
+        to,
+        channel: 'sms',
+      })
+      return { sent: true }
+    } catch (err) {
+      console.error(`[otp:twilio-error] ${phone} → ${err.message}`)
+      // Fall through to dev-console fallback
+    }
+  }
+
+  // Dev / fallback: generate locally and store in DB
+  const devCode = generateOtp()
+  console.log(`[otp:dev] ${phone} → ${devCode}`)
+  return { sent: false, dev: true, devCode }
+}
+
+export async function checkOtp(phone, code) {
+  if (!client) return null  // dev mode — caller handles DB check
+  const to = phone.startsWith('+') ? phone : `+91${phone}`
+  try {
+    const check = await client.verify.v2.services(config.twilio.verifySid).verificationChecks.create({ to, code })
+    return check.status === 'approved'
+  } catch (err) {
+    console.error(`[otp:twilio-check-error] ${phone} → ${err.message}`)
+    return null  // fall back to DB check
+  }
 }

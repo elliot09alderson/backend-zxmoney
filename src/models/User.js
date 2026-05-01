@@ -16,6 +16,8 @@ const UserSchema = new mongoose.Schema(
     intent: { type: String, enum: ['customer', 'partner'], default: 'customer' },
     name: { type: String, default: '' },
     lastLoginAt: { type: Date, default: null },
+    walletBalance: { type: Number, default: 0, min: 0 },  // ZX Wallet (monthly auto-credits)
+    earnedBalance: { type: Number, default: 0, min: 0 },  // Credit Earned (prizes, admin sends)
   },
   { timestamps: true },
 )

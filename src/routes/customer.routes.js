@@ -18,25 +18,31 @@ r.get('/restaurants/:id', async (req, res) => {
   res.json(r1.toJSON())
 })
 
-/** GET /contests — live contests (started, not yet ended) across all active restaurants */
+/** GET /contests — live contests from active restaurants + super-admin global contests */
 r.get('/contests', async (_req, res) => {
   const now = new Date()
   const activeRestaurants = await Restaurant.find({ status: 'active' }).select('_id')
   const ids = activeRestaurants.map((x) => x._id)
+
   const list = await Contest.find({
-    restaurantId: { $in: ids },
     active: true,
     startsAt: { $lte: now },
     endsAt: { $gt: now },
+    $or: [
+      { restaurantId: { $in: ids } },
+      { audience: 'all-customers', createdBySuperAdmin: true },
+    ],
   }).sort({ endsAt: 1 })
   res.json(list)
 })
 
-/** GET /winners — winners across all active restaurants */
+/** GET /winners — winners from active restaurants + any super-admin declared winners */
 r.get('/winners', async (_req, res) => {
   const activeRestaurants = await Restaurant.find({ status: 'active' }).select('_id')
   const ids = activeRestaurants.map((x) => x._id)
-  const list = await Winner.find({ restaurantId: { $in: ids } }).sort({ wonAt: -1 })
+  const list = await Winner.find({
+    $or: [{ restaurantId: { $in: ids } }, { declaredBySuperAdmin: true }],
+  }).sort({ wonAt: -1 })
   res.json(list)
 })
 

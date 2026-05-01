@@ -18,6 +18,14 @@ export function signOtpTicket(phone) {
   )
 }
 
+export function signSsoTicket(phone) {
+  return jwt.sign(
+    { sub: phone, typ: 'sso' },
+    config.jwtSecret,
+    { expiresIn: '90s' },
+  )
+}
+
 export function verify(token) {
   return jwt.verify(token, config.jwtSecret)
 }
