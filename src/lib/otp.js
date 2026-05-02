@@ -21,7 +21,11 @@ export async function sendOtp(phone) {
       return { sent: true }
     } catch (err) {
       console.error(`[otp:twilio-error] ${phone} → ${err.message}`)
-      // Fall through to dev-console fallback
+      // Twilio rate-limit — surface this explicitly so the caller can 429
+      if (err.message && /max send attempts/i.test(err.message)) {
+        return { sent: false, rateLimited: true }
+      }
+      // Other Twilio errors — fall through to dev-console fallback
     }
   }
 

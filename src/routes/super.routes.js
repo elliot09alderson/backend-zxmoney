@@ -53,7 +53,7 @@ r.get('/restaurants', async (_req, res) => {
 
 r.get('/winners', async (_req, res) => {
   const winners = await Winner.find().sort({ wonAt: -1 }).limit(200)
-  const restaurantIds = [...new Set(winners.map((w) => String(w.restaurantId)).filter(Boolean))]
+  const restaurantIds = [...new Set(winners.map((w) => w.restaurantId).filter((id) => id && id !== 'null' && id !== 'undefined'))]
   const restaurants = await Restaurant.find({ _id: { $in: restaurantIds } }).select('name')
   const nameById = Object.fromEntries(restaurants.map((r1) => [String(r1._id), r1.name]))
   res.json(winners.map((w) => ({ ...w.toJSON(), restaurantName: nameById[String(w.restaurantId)] || '' })))

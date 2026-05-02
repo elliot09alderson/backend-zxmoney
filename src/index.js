@@ -11,12 +11,24 @@ import superRoutes from './routes/super.routes.js'
 import partnerRoutes from './routes/partner.routes.js'
 import redeemRoutes from './routes/redeem.routes.js'
 import { startWalletCron } from './lib/walletCron.js'
+import logger from './lib/logger.js'
+
+// Route all console.* through winston so everything lands in daily log files
+console.log   = (...a) => logger.info(a.join(' '))
+console.info  = (...a) => logger.info(a.join(' '))
+console.warn  = (...a) => logger.warn(a.join(' '))
+console.error = (...a) => logger.error(a.join(' '))
+console.debug = (...a) => logger.debug(a.join(' '))
 
 const app = express()
 
 app.use(cors())
 app.use(express.json({ limit: '8mb' }))
-if (config.env !== 'test') app.use(morgan('dev'))
+if (config.env !== 'test') {
+  app.use(morgan('combined', {
+    stream: { write: (msg) => logger.http(msg.trim()) },
+  }))
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -46,15 +58,22 @@ app.use((err, _req, res, _next) => {
 async function boot() {
   await connectDb()
   if (config.seedOnBoot) {
-    try { await seedIfEmpty() } catch (e) { console.error('[seed]', e) }
+    try { await seedIfEmpty() } catch (e) { logger.error('[seed]', { err: e.message }) }
   }
   app.listen(config.port, () => {
-    console.log(`[api] listening on http://localhost:${config.port}`)
-    console.log(`[api] twilio: ${config.twilio.enabled ? 'enabled' : 'dev-console mode'}`)
+    logger.info(`[api] listening on http://localhost:${config.port}`)
+    logger.info(`[api] twilio: ${config.twilio.enabled ? 'enabled' : 'dev-console mode'}`)
   })
   startWalletCron()
 }
 boot().catch((e) => {
-  console.error('[boot]', e)
+  logger.error('[boot] fatal', { err: e.message, stack: e.stack })
   process.exit(1)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('[unhandledRejection]', { reason: String(reason) })
+})
+process.on('uncaughtException', (err) => {
+  logger.error('[uncaughtException]', { err: err.message, stack: err.stack })
 })

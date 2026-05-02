@@ -50,6 +50,10 @@ r.post('/request-otp', async (req, res) => {
 
   const result = await sendOtp(phone)
 
+  if (result.rateLimited) {
+    return res.status(429).json({ ok: false, error: 'Too many attempts. Please try again after 10 minutes.' })
+  }
+
   // Dev mode: store the generated code in DB so verify-otp can check it
   if (result.dev) {
     await User.updateOne({ phone }, { $set: { otp: result.devCode, otpExpiresAt: new Date(Date.now() + 5 * 60 * 1000) } })
